@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0e1016" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Gastos al día" />
+  <title>Gastos al día</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg: #0e1016; --surface: #171b24; --surface2: #1e2230; --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12); --text: #eef0f6; --text2: rgba(238,240,246,0.45); --text3: rgba(238,240,246,0.22); }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+    .app { max-width: 430px; margin: 0 auto; height: 100dvh; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .vignette { position: fixed; inset: 0; background: rgba(200,40,40,0.1); pointer-events: none; opacity: 0; z-index: 100; }
+    .header { padding: 3.5rem 0 1.6rem; text-align: center; border-bottom: 0.5px solid var(--border); flex-shrink: 0; position: relative; user-select: none; }
+    .header-label { font-size: 10px; color: var(--text3); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 0.55rem; }
+    .total { font-size: clamp(48px, 14vw, 64px); font-weight: 200; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; color: #dde0ea; display: inline-block; }
+    .month-label { font-size: 11px; color: var(--text3); letter-spacing: 0.04em; margin-top: 7px; }
+    .past-badge { font-size: 9px; letter-spacing: 0.1em; color: var(--text3); text-transform: uppercase; margin-top: 3px; display: none; }
+    .progress-bar { height: 1.5px; background: rgba(255,255,255,0.05); margin: 14px 1.5rem 0; border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 2px; width: 0%; transition: width 0.5s cubic-bezier(.4,0,.2,1), background 0.5s; }
+    .nav-arrow { position: absolute; top: 50%; transform: translateY(-55%); font-size: 20px; color: var(--text3); cursor: pointer; padding: 16px; transition: color 0.15s; line-height: 1; }
+    .nav-arrow:hover { color: var(--text2); }
+    .nav-arrow.disabled { opacity: 0.1; pointer-events: none; }
+    .nav-arrow.prev { left: 0; }
+    .nav-arrow.next { right: 0; }
+    .history { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+    .history::-webkit-scrollbar { width: 2px; }
+    .history::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    .hist-item { display: flex; align-items: center; gap: 12px; padding: 0.8rem 1.5rem; border-bottom: 0.5px solid var(--border); }
+    .hist-item:last-child { border-bottom: none; }
+    .hist-icon { font-size: 15px; width: 34px; height: 34px; background: var(--surface); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 0.5px solid var(--border2); }
+    .hist-cat { font-size: 11px; color: var(--text2); }
+    .hist-amount { font-size: 15px; font-weight: 400; color: var(--text); font-variant-numeric: tabular-nums; }
+    .hist-time { font-size: 10px; color: var(--text3); }
+    .hist-right { margin-left: auto; text-align: right; }
+    .hist-delete { font-size: 16px; color: var(--text3); cursor: pointer; padding: 4px 0 4px 8px; transition: color 0.15s; flex-shrink: 0; line-height: 1; }
+    .hist-delete:hover { color: #c44; }
+    .empty-state { padding: 3rem; text-align: center; color: var(--text3); font-size: 13px; }
+    .input-bar { padding: 1rem 1.25rem calc(1rem + env(safe-area-inset-bottom)); border-top: 0.5px solid var(--border); background: var(--surface); flex-shrink: 0; }
+    .input-row { display: flex; gap: 8px; align-items: center; }
+    .cat-toggle { width: 46px; height: 46px; border-radius: 13px; border: 0.5px solid var(--border2); background: var(--surface2); cursor: pointer; font-size: 19px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; user-select: none; -webkit-appearance: none; appearance: none; outline: none; transition: opacity 0.15s; }
+    .cat-toggle:active { opacity: 0.6; }
+    .amount-input { flex: 1; height: 46px; padding: 0 1rem; border: 0.5px solid var(--border2); border-radius: 13px; background: var(--surface2); color: var(--text); font-size: 17px; font-family: inherit; min-width: 0; outline: none; -webkit-appearance: none; appearance: none; }
+    .amount-input:focus { border-color: rgba(255,255,255,0.25); }
+    .amount-input::placeholder { color: var(--text3); }
+    .amount-input:disabled { opacity: 0.35; }
+    .cargar-btn { height: 46px; padding: 0 1.3rem; border-radius: 13px; border: none; cursor: pointer; font-size: 15px; font-weight: 500; font-family: inherit; color: #fff; flex-shrink: 0; -webkit-appearance: none; appearance: none; outline: none; transition: transform 0.1s, opacity 0.2s; }
+    .cargar-btn:active { transform: scale(0.97); }
+    .cargar-btn:disabled { opacity: 0.3; cursor: default; }
+    @keyframes shake { 0%{transform:translateX(0)}15%{transform:translateX(-7px)}30%{transform:translateX(7px)}45%{transform:translateX(-5px)}60%{transform:translateX(4px)}75%{transform:translateX(-2px)}90%{transform:translateX(1px)}100%{transform:translateX(0)} }
+    @keyframes punch { 0%{transform:scale(1)}25%{transform:scale(1.16)}65%{transform:scale(0.97)}100%{transform:scale(1)} }
+    @keyframes vignette-in { 0%{opacity:0}25%{opacity:1}100%{opacity:0} }
+    @keyframes slide-in-right { from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)} }
+    @keyframes slide-in-left { from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)} }
+    @keyframes item-in { from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)} }
+    .shake{animation:shake 0.5s ease}.punch{animation:punch 0.4s ease}.vig-on{animation:vignette-in 0.65s ease forwards}.slide-r{animation:slide-in-right 0.22s ease both}.slide-l{animation:slide-in-left 0.22s ease both}.item-in{animation:item-in 0.28s ease}
+  </style>
+</head>
+<body>
+<div class="vignette" id="vig"></div>
+<div class="app">
+  <div class="header" id="header">
+    <span class="nav-arrow prev" id="prevBtn" onclick="changeMonth(-1)">&#8249;</span>
+    <span class="nav-arrow next" id="nextBtn" onclick="changeMonth(1)">&#8250;</span>
+    <div class="header-label">gasto del mes</div>
+    <div class="total" id="total">$0</div>
+    <div class="month-label" id="monthLabel"></div>
+    <div class="past-badge" id="pastBadge">mes anterior</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+  <div class="history" id="history">
+    <div class="empty-state" id="emptyState">sin gastos aún</div>
+  </div>
+  <div class="input-bar">
+    <div class="input-row">
+      <button class="cat-toggle" id="catToggle" onclick="toggleCat()">&#x1F6D2;</button>
+      <input class="amount-input" id="amountInput" type="number" inputmode="numeric" placeholder="$ monto" min="1" onkeydown="if(event.key==='Enter') cargar()" />
+      <button class="cargar-btn" id="cargarBtn" onclick="cargar()">Cargar</button>
+    </div>
+  </div>
+</div>
+<script>
+const now=new Date(),TODAY_Y=now.getFullYear(),TODAY_M=now.getMonth();
+let viewYear=TODAY_Y,viewMonth=TODAY_M,catIdx=0,animRaf=null;
+const MAX=150000;
+const CATS=[{name:'Mercado',e:'\u{1F6D2}'},{name:'Verdura',e:'\u{1F966}'}];
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function storageKey(y,m){return 'gastos_'+y+'_'+m;}
+function getData(y,m){try{const r=localStorage.getItem(storageKey(y,m));return r?JSON.parse(r):{total:0,items:[]};}catch{return{total:0,items:[]};}}
+function saveData(y,m,d){try{localStorage.setItem(storageKey(y,m),JSON.stringify(d));}catch{}}
+function lerp(a,b,t){return a+(b-a)*t;}
+function lerp3(c1,c2,t){return[lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],c2[2],t)];}
+function getColor(v){const p=Math.min(v/MAX,1),pl=[210,212,222],go=[194,148,72],cr=[196,68,68],rgb=p<0.5?lerp3(pl,go,p*2):lerp3(go,cr,(p-0.5)*2);return 'rgb('+Math.round(rgb[0])+','+Math.round(rgb[1])+','+Math.round(rgb[2])+')';}
+function fmt(n){return '$'+Math.round(n).toLocaleString('es-AR');}
+function pad(n){return String(n).padStart(2,'0');}
+function fmtTime(t){return pad(t.getHours())+':'+pad(t.getMinutes());}
+function easeOutExpo(t){return t>=1?1:1-Math.pow(2,-10*t);}
+function animateCount(from,to,dur){if(animRaf)cancelAnimationFrame(animRaf);let start=null;const el=document.getElementById('total'),btn=document.getElementById('cargarBtn');function step(ts){if(!start)start=ts;const t=Math.min((ts-start)/dur,1),cur=from+(to-from)*easeOutExpo(t);el.textContent=fmt(cur);el.style.color=getColor(cur);btn.style.background=getColor(cur);if(t<1)animRaf=requestAnimationFrame(step);else{el.textContent=fmt(to);el.style.color=getColor(to);}}animRaf=requestAnimationFrame(step);}
+function triggerPain(){const app=document.querySelector('.app'),tot=document.getElementById('total'),vig=document.getElementById('vig');app.classList.remove('shake');tot.classList.remove('punch');vig.classList.remove('vig-on');void app.offsetWidth;app.classList.add('shake');tot.classList.add('punch');vig.classList.add('vig-on');setTimeout(()=>{app.classList.remove('shake');tot.classList.remove('punch');vig.classList.remove('vig-on');},700);}
+function toggleCat(){catIdx=catIdx===0?1:0;document.getElementById('catToggle').textContent=CATS[catIdx].e;}
+function cargar(){if(!isCurrentMonth())return;const val=parseFloat(document.getElementById('amountInput').value);if(!val||val<=0)return;const data=getData(viewYear,viewMonth),prev=data.total;data.total+=val;data.items.unshift({cat:catIdx,amount:val,t:new Date().toISOString()});saveData(viewYear,viewMonth,data);document.getElementById('amountInput').value='';updateBar(data.total);renderHistory(null,data);triggerPain();animateCount(prev,data.total,620);}
+function deleteItem(idx){const data=getData(viewYear,viewMonth),amount=data.items[idx].amount;data.items.splice(idx,1);data.total=Math.max(0,data.total-amount);saveData(viewYear,viewMonth,data);const prev=data.total+amount;updateBar(data.total);renderHistory(null,data);animateCount(prev,data.total,500);}
+function isCurrentMonth(){return viewYear===TODAY_Y&&viewMonth===TODAY_M;}
+function changeMonth(dir){let m=viewMonth+dir,y=viewYear;if(m<0){m=11;y--;}if(m>11){m=0;y++;}if(y>TODAY_Y||(y===TODAY_Y&&m>TODAY_M))return;viewMonth=m;viewYear=y;renderView(dir>0?'r':'l');}
+function renderView(slide){const data=getData(viewYear,viewMonth),cur=isCurrentMonth();if(animRaf)cancelAnimationFrame(animRaf);const totEl=document.getElementById('total');totEl.textContent=fmt(data.total);totEl.style.color=getColor(data.total);document.getElementById('monthLabel').textContent=MESES[viewMonth]+' '+viewYear;document.getElementById('pastBadge').style.display=cur?'none':'block';const btn=document.getElementById('cargarBtn');btn.disabled=!cur;btn.style.background=getColor(cur?data.total:0);const inp=document.getElementById('amountInput');inp.disabled=!cur;inp.placeholder=cur?'$ monto':'solo lectura';document.getElementById('nextBtn').classList.toggle('disabled',cur);updateBar(data.total);renderHistory(slide,data);}
+function updateBar(total){const pct=Math.min(total/MAX*100,100),fill=document.getElementById('progressFill');fill.style.width=pct+'%';fill.style.background=getColor(total);}
+function renderHistory(slide,data){const hist=document.getElementById('history'),emptyEl=document.getElementById('emptyState');hist.querySelectorAll('.hist-item').forEach(el=>el.remove());if(!data||data.items.length===0){emptyEl.style.display='block';return;}emptyEl.style.display='none';const frag=document.createDocumentFragment();data.items.forEach((h,i)=>{const d=document.createElement('div');let cls='hist-item';if(slide==='r')cls+=' slide-r';else if(slide==='l')cls+=' slide-l';else if(i===0)cls+=' item-in';d.className=cls;if(slide)d.style.animationDelay=(i*0.025)+'s';const t=new Date(h.t);d.innerHTML='<div class="hist-icon">'+CATS[h.cat].e+'</div><div class="hist-cat">'+CATS[h.cat].name+'</div><div class="hist-right"><div class="hist-amount">'+fmt(h.amount)+'</div><div class="hist-time">'+fmtTime(t)+'</div></div><div class="hist-delete" onclick="deleteItem('+i+')">x</div>';frag.appendChild(d);});hist.appendChild(frag);}
+let touchStartX=0;const header=document.getElementById('header');header.addEventListener('touchstart',e=>{touchStartX=e.touches[0].clientX;},{passive:true});header.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-touchStartX;if(Math.abs(dx)>45)changeMonth(dx<0?1:-1);},{passive:true});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+renderView();
+</script>
+</body>
+</html>
